@@ -4,11 +4,8 @@ import json
 import numpy as np
 import math
 import os
+import sys
 from mathutils import Vector
-
-os.system("cls")
-
-# bpy.ops.wm.read_factory_settings(use_empty=True)
 
 
 def reset_blend():
@@ -20,46 +17,6 @@ def reset_blend():
     bpy.ops.outliner.orphans_purge(
         do_local_ids=True, do_linked_ids=True, do_recursive=True
     )
-
-
-reset_blend()
-
-
-# Now you can work with the 'data' variable
-# print(data)
-
-
-# https://docs.blender.org/api/current/bpy.ops.import_scene.html#bpy.ops.import_scene.gltf
-
-EXAMPLE_ARG = {
-    "scenario": {
-        "lighting": "../../../shared-assets/environments/lightroom_14b.hdr",
-        "dimensions": {"width": 1536, "height": 900},
-        "target": {"x": 0, "y": 0.3, "z": 0},
-        "orbit": {"theta": 0, "phi": 90, "radius": 1},
-        "verticalFoV": 45,
-        "renderSkybox": False,
-        "name": "khronos-SheenChair",
-        "model": "../../../shared-assets/models/glTF-Sample-Models/2.0/SheenChair/glTF-Binary/SheenChair.glb",
-    },
-    "outputFile": "../../../test/goldens/khronos-SheenChair/stellar-golden.png",
-}
-
-# EXAMPLE_ARG = {
-#     "scenario": {
-#         "name": "khronos-IridescentDishWithOlives",
-#         "model": "../../../shared-assets/models/glTF-Sample-Models/2.0/IridescentDishWithOlives/glTF-Binary/IridescentDishWithOlives.glb",
-#         "lighting": "../../../shared-assets/environments/spruit_sunrise_1k_HDR.hdr",
-#         "renderSkybox": True,
-#         "orbit": {"radius": 0.47, "theta": -70},
-#         "dimensions": {"height": 570},
-#         "verticalFoV": 45,
-#         "target": {"y": 0.11},
-#         "exclude": ["babylon"],
-#         "dimensions": {"width": 1356, "height": 900},
-#     },
-#     "outputFile": "../../../test/goldens/khronos-SheenChair/stellar-golden.png",
-# }
 
 
 json_file_path = "F:/net/blender_python_render/tasks.json"
@@ -78,23 +35,17 @@ def convert_target(original_target):
     return new_target
 
 
-def bounding_sphere(objects, mode="BBOX"):
+def bounding_sphere(objects):
     # return the bounding sphere center and radius for objects (in global coordinates)
     if not isinstance(objects, list):
         objects = [objects]
     points_co_global = []
-    if mode == "GEOMETRY":
-        # GEOMETRY - by all vertices/points - more precis, more slow
-        for obj in objects:
-            points_co_global.extend(
-                [obj.matrix_world @ vertex.co for vertex in obj.data.vertices]
-            )
-    elif mode == "BBOX":
-        # BBOX - by object bounding boxes - less precis, quick
-        for obj in objects:
-            points_co_global.extend(
-                [obj.matrix_world @ Vector(bbox) for bbox in obj.bound_box]
-            )
+
+    # GEOMETRY - by all vertices/points - more precis, more slow
+    for obj in objects:
+        points_co_global.extend(
+            [obj.matrix_world @ vertex.co for vertex in obj.data.vertices]
+        )
 
     def get_center(l):
         return (max(l) + min(l)) / 2 if l else 0.0
@@ -111,13 +62,19 @@ def bounding_sphere(objects, mode="BBOX"):
     return b_sphere_center, b_sphere_radius.length
 
 
-def main(scenario):
-    name = scenario.get("name", "noName")
-    print("name: ", name)
-    # config = json.loads(sys.argv[1])
+def main():
+    bpy.ops.wm.read_factory_settings(use_empty=True)
 
-    # scenario = config["scenario"]
-    outpath = ""  # config["outputFile"]
+    # reset_blend()
+
+    config = json.loads(sys.argv[5])
+    pretty_json = json.dumps(config, indent=4)
+
+    # Print the pretty-printed JSON
+    print(pretty_json)
+
+    scenario = config["scenario"]
+    outPath = config["outputFile"]
 
     # parse scenario
     resolution = [1536, 1536]
@@ -125,12 +82,18 @@ def main(scenario):
         resolution[0] = scenario["dimensions"].get("width", resolution[0])
         resolution[1] = scenario["dimensions"].get("height", resolution[1])
 
-    scenePath = "shared-assets" + scenario["model"].split("shared-assets")[1]
+    scenePath = (
+        root_folder + "shared-assets" + scenario["model"].split("shared-assets")[1]
+    )
 
-    iblPath = "shared-assets/environments/lightroom_14b.hdr"
+    iblPath = root_folder + "shared-assets/environments/lightroom_14b.hdr"
 
     if scenario.get("lighting"):
-        iblPath = "shared-assets" + scenario["lighting"].split("shared-assets")[1]
+        iblPath = (
+            root_folder
+            + "shared-assets"
+            + scenario["lighting"].split("shared-assets")[1]
+        )
 
     renderSkybox = False
     if scenario.get("renderSkybox"):
@@ -142,6 +105,7 @@ def main(scenario):
     target = {"x": 0, "y": 0, "z": 0}
     if scenario.get("target"):
         target = convert_target(scenario["target"])
+
     print("target:", target)
     theta = 0
     phi = 90
@@ -151,18 +115,17 @@ def main(scenario):
         phi = scenario["orbit"].get("phi", phi)
         radius = scenario["orbit"].get("radius", radius)
 
-    verticalFov = 45
-    if scenario.get("verticalFoV"):
-        verticalFov = scenario["verticalFoV"]
+    verticalFov = scenario.get("verticalFoV", 45)
+
     aspect = resolution[0] / resolution[1]
 
-    GLTF_PATH = root_folder + scenePath
-    HDRI_PATH = root_folder + iblPath
-    RENDER_PATH = "F:/net/blender_python_render/output/"
-    print("outpath:", outpath)
+    # GLTF_PATH = root_folder + scenePath
+    # HDRI_PATH = root_folder + iblPath
+
+    print("outPath:", outPath)
     print("resolution:", resolution)
     print("scenePath:", scenePath)
-    print("gltf full path:", GLTF_PATH)
+    # print("gltf full path:", GLTF_PATH)
 
     print("iblPath:", iblPath)
     print("renderSkybox:", renderSkybox)
@@ -177,7 +140,7 @@ def main(scenario):
     bpy.context.scene.render.resolution_y = resolution[1]
 
     # Import the GLTF model
-    bpy.ops.import_scene.gltf(filepath=GLTF_PATH)
+    bpy.ops.import_scene.gltf(filepath=scenePath)
 
     bpy.ops.object.empty_add(
         type="SINGLE_ARROW", align="WORLD", location=(0, 0, 0), scale=(1, 1, 1)
@@ -194,15 +157,17 @@ def main(scenario):
         scale=(1, 1, 1),
     )
     camera = bpy.context.object
-    camera.data.lens_unit = "FOV"
-    camera.data.lens = verticalFov  # vertical_fov_to_horizontal(verticalFov, aspect)
+
     bpy.context.scene.camera = camera
 
-    # Calculate the horizontal FOV from the vertical FOV and aspect ratio
-    horizontalFov = 2 * np.arctan(np.tan(np.radians(verticalFov) / 2) * aspect)
-
     # Set the camera's field of view
-    camera.data.angle = horizontalFov
+    camera.data.lens_unit = "FOV"
+    if aspect > 1:
+        # Calculate the horizontal FOV from the vertical FOV and aspect ratio
+        horizontalFov = 2 * math.atan(math.tan(math.radians(verticalFov) / 2) * aspect)
+        camera.data.angle = horizontalFov
+    else:
+        camera.data.angle = math.radians(verticalFov)
 
     # Set the empty as the parent of the camera
     targetObj.select_set(True)
@@ -216,7 +181,7 @@ def main(scenario):
     )
 
     targetObj.location.x = target["x"]
-    targetObj.location.y = target["z"]
+    targetObj.location.y = -target["z"]
     targetObj.location.z = target["y"]
 
     targetObj.rotation_euler[0] = math.radians(phi)
@@ -224,7 +189,7 @@ def main(scenario):
     targetObj.rotation_euler[2] = math.radians(theta)
 
     meshes = [obj for obj in bpy.context.scene.objects if obj.type == "MESH"]
-    b_sphere_co, b_sphere_radius = bounding_sphere(objects=meshes, mode="GEOMETRY")
+    b_sphere_co, b_sphere_radius = bounding_sphere(meshes)
 
     radius = max(radius, b_sphere_radius, 1e-5)
     camera.data.clip_start = 2 * radius / 1000
@@ -234,8 +199,8 @@ def main(scenario):
 
     # Set up HDRI lighting and background color
     scn = bpy.context.scene
-    if not scn.world:
-        bpy.ops.world.new()
+    world = bpy.data.worlds.new("World")  # Create a new world
+    scn.world = world
 
     scn.world.use_nodes = True
     wd = scn.world
@@ -246,7 +211,7 @@ def main(scenario):
 
     hdriNode = ntree.nodes.new(type="ShaderNodeTexEnvironment")
     hdriNode.location = 0, 0
-    hdriNode.image = bpy.data.images.load(HDRI_PATH)
+    hdriNode.image = bpy.data.images.load(iblPath)
 
     defNode = ntree.nodes.new("ShaderNodeBackground")
     defNode.location = 250, 0
@@ -263,18 +228,25 @@ def main(scenario):
     bpy.context.scene.cycles.device = "GPU"
     bpy.context.scene.cycles.samples = 4096
     bpy.context.scene.cycles.use_denoising = True
-    bpy.context.scene.cycles.time_limit = 20
+    bpy.context.scene.cycles.time_limit = 30
+
+    bpy.context.scene.render.use_stamp = True
 
     # bpy.context.scene.render.image_settings.file_format = "JPEG"
     # bpy.context.scene.render.image_settings.quality = 90
     # bpy.context.scene.render.image_settings.color_mode = "RGB"
 
     bpy.context.scene.view_settings.view_transform = "AgX"
+    # bpy.context.scene.view_settings.look = "AgX - Medium High Contrast"
+
+    # bpy.context.scene.view_settings.view_transform = "Filmic"
+    # bpy.context.scene.view_settings.look = "Medium High Contrast"
+
     bpy.context.scene.render.image_settings.file_format = "PNG"
     bpy.context.scene.render.image_settings.color_mode = "RGBA"
     bpy.context.scene.render.image_settings.compression = 15
 
-    bpy.context.scene.render.filepath = RENDER_PATH + "cycles_" + name
+    bpy.context.scene.render.filepath = outPath
 
     bpy.ops.render.render(write_still=True)
 
@@ -287,8 +259,11 @@ def main(scenario):
 
 # print(camera.location)
 # Open the JSON file for reading
-with open("F:/net/blender_python_render/config.json", "r") as file:
-    data = json.load(file)
-    all_scenarios = data["scenarios"]
-    scenario = all_scenarios[9]
-    main(scenario)
+# with open("F:/net/blender_python_render/config.json", "r") as file:
+#     data = json.load(file)
+#     all_scenarios = data["scenarios"]
+#     scenario = all_scenarios[9]
+#     main(scenario)
+
+if __name__ == "__main__":
+    main()
